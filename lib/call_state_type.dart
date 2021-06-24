@@ -11,7 +11,7 @@ extension CallStateTypeEx on CallStateType {
       case 1:
         return CallStateType.calling;
       default:
-        return null;
+        return CallStateType.calling;
     }
   }
 
@@ -22,7 +22,7 @@ extension CallStateTypeEx on CallStateType {
       case CallStateType.calling:
         return 'calling';
       default:
-        return null;
+        return 'calling';
     }
   }
 }

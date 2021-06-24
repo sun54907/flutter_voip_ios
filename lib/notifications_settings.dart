@@ -20,7 +20,7 @@ extension on AuthorizationStatus {
       case AuthorizationStatus.ephemeral:
         return '.ephemeral';
       default:
-        return null;
+        return '.ephemeral';
     }
   }
 }
@@ -41,7 +41,7 @@ extension on ShowPreviewsSetting {
       case ShowPreviewsSetting.never:
         return '.never';
       default:
-        return null;
+        return '.never';
     }
   }
 }
@@ -62,7 +62,7 @@ extension on NotificationSetting {
       case NotificationSetting.enabled:
         return '.enabled';
       default:
-        return null;
+        return '.alert';
     }
   }
 }
@@ -79,7 +79,7 @@ extension on AlertStyle {
       case AlertStyle.alert:
         return '.alert';
       default:
-        return null;
+        return '.alert';
     }
   }
 }

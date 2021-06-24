@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ios_voip_kit/call_state_type.dart';
 import 'package:flutter_ios_voip_kit/channel_type.dart';
@@ -11,21 +10,23 @@ import 'notifications_settings.dart';
 final MethodChannel _channel = MethodChannel(ChannelType.method.name);
 
 typedef IncomingPush = void Function(Map<String, dynamic> payload);
-typedef IncomingAction = void Function(String uuid, String callerId);
+typedef IncomingAction = void Function(
+    String uuid, String callerId, String receiverId, String callerName);
 typedef OnUpdatePushToken = void Function(String token);
 typedef OnAudioSessionStateChanged = void Function(bool active);
 
 class FlutterIOSVoIPKit {
-  static FlutterIOSVoIPKit get instance => _getInstance();
-  static FlutterIOSVoIPKit _instance;
-  static FlutterIOSVoIPKit _getInstance() {
+  static FlutterIOSVoIPKit get instance => _getInstance()!;
+  static FlutterIOSVoIPKit? _instance;
+
+  static FlutterIOSVoIPKit? _getInstance() {
     if (_instance == null) {
       _instance = FlutterIOSVoIPKit._internal();
     }
     return _instance;
   }
 
-  factory FlutterIOSVoIPKit() => _getInstance();
+  factory FlutterIOSVoIPKit() => _getInstance()!;
 
   FlutterIOSVoIPKit._internal() {
     if (Platform.isAndroid) {
@@ -38,18 +39,18 @@ class FlutterIOSVoIPKit {
   }
 
   /// [onDidReceiveIncomingPush] is not called when the app is not running, because app is not yet running when didReceiveIncomingPushWith is called.
-  IncomingPush onDidReceiveIncomingPush;
+  IncomingPush? onDidReceiveIncomingPush;
 
   /// [onDidAcceptIncomingCall] and [onDidRejectIncomingCall] can be called even if the app is not running.
   /// This is because the app is already running when the incoming call screen is displayed for CallKit.
   /// If not called, make sure the app is calling [onDidAcceptIncomingCall] and [onDidRejectIncomingCall] in the Dart class(ex: main.dart) that is called immediately after the app is launched.
-  IncomingAction onDidAcceptIncomingCall;
-  IncomingAction onDidRejectIncomingCall;
-  OnUpdatePushToken onDidUpdatePushToken;
+  IncomingAction? onDidAcceptIncomingCall;
+  IncomingAction? onDidRejectIncomingCall;
+  OnUpdatePushToken? onDidUpdatePushToken;
 
-  OnAudioSessionStateChanged onAudioSessionStateChanged;
+  OnAudioSessionStateChanged? onAudioSessionStateChanged;
 
-  StreamSubscription<dynamic> _eventSubscription;
+  StreamSubscription<dynamic>? _eventSubscription;
 
   Future<void> dispose() async {
     print('🎈 dispose');
@@ -59,7 +60,7 @@ class FlutterIOSVoIPKit {
 
   /// method channel
 
-  Future<String> getVoIPToken() async {
+  Future<String?> getVoIPToken() async {
     print('🎈 getVoIPToken');
 
     if (Platform.isAndroid) {
@@ -69,7 +70,7 @@ class FlutterIOSVoIPKit {
     return await _channel.invokeMethod('getVoIPToken');
   }
 
-  Future<String> getIncomingCallerName() async {
+  Future<String?> getIncomingCallerName() async {
     print('🎈 getIncomingCallerName');
 
     if (Platform.isAndroid) {
@@ -80,8 +81,8 @@ class FlutterIOSVoIPKit {
   }
 
   Future<void> startCall({
-    @required String uuid,
-    @required String targetName,
+    required String uuid,
+    required String targetName,
   }) async {
     print('🎈 startCall');
 
@@ -95,18 +96,28 @@ class FlutterIOSVoIPKit {
     });
   }
 
-  Future<void> endCall() async {
+  Future<void> endCall({
+    required String uuid,
+    required String callerId,
+    required String receiverId,
+    required String callerName,
+  }) async {
     print('🎈 endCall');
 
     if (Platform.isAndroid) {
       return null;
     }
 
-    return await _channel.invokeMethod('endCall');
+    return await _channel.invokeMethod('endCall', {
+      'uuid': uuid,
+      'callID': callerId,
+      'receiverID': receiverId,
+      "callName": callerName
+    });
   }
 
   Future<void> acceptIncomingCall({
-    @required CallStateType callerState,
+    required CallStateType callerState,
   }) async {
     print('🎈 acceptIncomingCall');
 
@@ -121,8 +132,8 @@ class FlutterIOSVoIPKit {
 
   Future<void> unansweredIncomingCall({
     bool skipLocalNotification = false,
-    @required String missedCallTitle,
-    @required String missedCallBody,
+    required String missedCallTitle,
+    required String missedCallBody,
   }) async {
     print(
       '🎈 unansweredIncomingCall $skipLocalNotification, $missedCallTitle, $missedCallBody',
@@ -149,7 +160,7 @@ class FlutterIOSVoIPKit {
     return await _channel.invokeMethod('callConnected');
   }
 
-  Future<bool> requestAuthLocalNotification() async {
+  Future<bool?> requestAuthLocalNotification() async {
     print('🎈 requestAuthLocalNotification');
 
     if (Platform.isAndroid) {
@@ -160,7 +171,7 @@ class FlutterIOSVoIPKit {
     return result['granted'];
   }
 
-  Future<NotificationSettings> getLocalNotificationsSettings() async {
+  Future<NotificationSettings?> getLocalNotificationsSettings() async {
     print('🎈 getLocalNotificationsSettings');
 
     if (Platform.isAndroid) {
@@ -172,9 +183,10 @@ class FlutterIOSVoIPKit {
   }
 
   Future<void> testIncomingCall({
-    @required String uuid,
-    @required String callerId,
-    @required String callerName,
+    required String uuid,
+    required String callerId,
+    required String callerName,
+    required String receiverId,
   }) async {
     print('🎈 testIncomingCall: $uuid, $callerId, $callerName');
 
@@ -185,39 +197,46 @@ class FlutterIOSVoIPKit {
 
     return await _channel.invokeMethod('testIncomingCall', {
       'uuid': uuid,
-      'callerId': callerId,
-      'callerName': callerName,
+      'callID': callerId,
+      'callName': callerName,
+      'receiverID': receiverId
     });
   }
 
-  /// event channel
+  static Future<dynamic> test() {
+    try {
+      return _channel.invokeMethod("test", {});
+    } catch (_) {
+      return Future.value(null);
+    }
+  }
 
+  /// event channel
   void _eventListener(dynamic event) {
     print('🎈 _eventListener');
 
     final Map<dynamic, dynamic> map = event;
     switch (map['event']) {
+      case 'test':
+        _channel
+            .invokeMethod('test')
+            .then((result) => print("FlutterIOSVoipKit test - $result"));
+        break;
       case 'onDidReceiveIncomingPush':
         print('🎈 onDidReceiveIncomingPush($onDidReceiveIncomingPush): $map');
 
-        if (onDidReceiveIncomingPush == null) {
-          return;
-        }
-
-        onDidReceiveIncomingPush(
+        onDidReceiveIncomingPush?.call(
           Map<String, dynamic>.from(map['payload'] as Map),
         );
         break;
       case 'onDidAcceptIncomingCall':
         print('🎈 onDidAcceptIncomingCall($onDidAcceptIncomingCall): $map');
 
-        if (onDidAcceptIncomingCall == null) {
-          return;
-        }
-
-        onDidAcceptIncomingCall(
+        onDidAcceptIncomingCall?.call(
           map['uuid'],
-          map['incoming_caller_id'],
+          map['callID'],
+          map['receiverID'],
+          map['callName'],
         );
         break;
       case 'onDidRejectIncomingCall':
@@ -227,9 +246,11 @@ class FlutterIOSVoIPKit {
           return;
         }
 
-        onDidRejectIncomingCall(
+        onDidRejectIncomingCall?.call(
           map['uuid'],
-          map['incoming_caller_id'],
+          map['callID'],
+          map['receiverID'],
+          map['callName'],
         );
         break;
 
@@ -241,17 +262,15 @@ class FlutterIOSVoIPKit {
           return;
         }
 
-        onDidUpdatePushToken(token);
+        onDidUpdatePushToken?.call(token);
         break;
       case 'onDidActivateAudioSession':
         print('🎈 onDidActivateAudioSession');
-        if (onAudioSessionStateChanged != null)
-          onAudioSessionStateChanged(true);
+        onAudioSessionStateChanged?.call(true);
         break;
       case 'onDidDeactivateAudioSession':
         print('🎈 onDidDeactivateAudioSession');
-        if (onAudioSessionStateChanged != null)
-          onAudioSessionStateChanged(false);
+        onAudioSessionStateChanged?.call(false);
         break;
     }
   }

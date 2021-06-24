@@ -26,9 +26,13 @@ public class SwiftFlutterIOSVoIPKitPlugin: NSObject {
 
     // MARK: - method channel
 
+    private func test(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        result(true)
+    }
+
     private func getVoIPToken(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         result(self.voIPCenter.token)
-    }
+     }
 
     private func getIncomingCallerName(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         result(self.voIPCenter.callKitCenter.incomingCallerName)
@@ -46,7 +50,17 @@ public class SwiftFlutterIOSVoIPKitPlugin: NSObject {
     }
 
     private func endCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        self.voIPCenter.callKitCenter.endCall()
+        guard let args = call.arguments as? [String: Any],
+            let uuid = args["uuid"] as? String,
+            let callerId = args["callID"] as? String,
+            let callerName = args["callName"] as? String,
+            let receiverId = args["receiverID"] as? String else {
+                result(FlutterError(code: "InvalidArguments testIncomingCall", message: nil, details: nil))
+                return
+        }
+        self.voIPCenter.callKitCenter.endCall(uuid,
+                                                   callerId: callerId,
+                                                   callerName: callerName, receiverId: receiverId)
         result(nil)
     }
 
@@ -115,15 +129,17 @@ public class SwiftFlutterIOSVoIPKitPlugin: NSObject {
     private func testIncomingCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard let args = call.arguments as? [String: Any],
             let uuid = args["uuid"] as? String,
-            let callerId = args["callerId"] as? String,
-            let callerName = args["callerName"] as? String else {
+            let callerId = args["callID"] as? String,
+            let callerName = args["callName"] as? String,
+            let receiverId = args["receiverID"] as? String else {
                 result(FlutterError(code: "InvalidArguments testIncomingCall", message: nil, details: nil))
                 return
         }
 
         self.voIPCenter.callKitCenter.incomingCall(uuidString: uuid,
                                                    callerId: callerId,
-                                                   callerName: callerName) { (error) in
+                                                   callerName: callerName,
+                                                   receiverId: receiverId) { (error) in
             if let error = error {
                 print("❌ testIncomingCall error: \(error.localizedDescription)")
                 result(FlutterError(code: "testIncomingCall",
@@ -149,6 +165,7 @@ extension SwiftFlutterIOSVoIPKitPlugin: UNUserNotificationCenterDelegate {
 extension SwiftFlutterIOSVoIPKitPlugin: FlutterPlugin {
 
     private enum MethodChannel: String {
+        case test
         case getVoIPToken
         case getIncomingCallerName
         case startCall
@@ -169,6 +186,8 @@ extension SwiftFlutterIOSVoIPKitPlugin: FlutterPlugin {
             return
         }
         switch method {
+            case .test:
+                self.test(call, result: result)
             case .getVoIPToken:
                 self.getVoIPToken(call, result: result)
             case .getIncomingCallerName:

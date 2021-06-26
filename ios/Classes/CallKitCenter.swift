@@ -8,23 +8,8 @@
 import Foundation
 import CallKit
 import UIKit
-// import Starscream
-
-//// MAKR: - SOCKET
-//let urlSession = URLSession(configuration: .default)
-//let webSocketTask = urlSession.webSocketTask(with: URL(string: "https://k4.kashin.io:8086/ws")!)
-
 
 class CallKitCenter: NSObject {
-//class CallKitCenter: NSObject, WebSocketDelegate {
-//    func didReceive(event: WebSocketEvent, client: WebSocket) {
-//        print("WebSocketDelegate - didReceive")
-//        print(event)
-//    }
-//
-//
-//    var request = URLRequest(url: URL(string: "https://k4.kashin.io:8086/ws")!)
-//    private var socket: WebSocket!
     
     private let controller = CXCallController()
     private let iconName: String
@@ -61,11 +46,6 @@ class CallKitCenter: NSObject {
             self.skipRecallScreen = false
         }
         super.init()
-//        request.timeoutInterval = 5
-//        let pinner = FoundationSecurity(allowSelfSigned: true) // don't validate SSL certificates
-//        socket = WebSocket(request: request, certPinner: pinner)
-//        socket.delegate = self
-//        socket.connect()
     }
 
     func setup(delegate: CXProviderDelegate) {
@@ -93,7 +73,6 @@ class CallKitCenter: NSObject {
     }
 
     func incomingCall(uuidString: String, callerId: String, callerName: String, receiverId: String, completion: @escaping (Error?) -> Void) {
-//        socket.connect()
         self.uuidString = uuidString
         self.incomingCallerId = callerId
         self.incomingCallerName = callerName
@@ -130,27 +109,13 @@ class CallKitCenter: NSObject {
         self.disconnected(reason: .unanswered)
     }
     
-//    func sendCommand(_ command: String) {
-//        let dictionary = ["_cid": 10000, "type": command, "data": ["from": self.receiverId, "to": self.incomingCallerId, "session_id": nil]] as [String : Any]
-//        if let theJSONData = try?  JSONSerialization.data(
-//              withJSONObject: dictionary,
-//              options: .prettyPrinted
-//              ),
-//              let jsonCommand = String(data: theJSONData,
-//                                       encoding: String.Encoding.ascii) {
-//                print("JSON string = \n\(jsonCommand)")
-//                socket.write(string: jsonCommand)
-//            }
-//    }
     
     func endCall(_ uuidString: String, callerId: String, callerName: String, receiverId: String) {
-//        socket.connect()
         self.uuidString = uuidString
         self.incomingCallerId = callerId
         self.incomingCallerName = callerName
         self.receiverId = receiverId
         self.isReceivedIncomingCall = true
-//        self.sendCommand("call_rejected")
         let endCallAction = CXEndCallAction(call: self.uuid)
         let transaction = CXTransaction(action: endCallAction)
         self.controller.request(transaction) { error in

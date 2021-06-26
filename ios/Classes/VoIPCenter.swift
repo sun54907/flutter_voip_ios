@@ -118,6 +118,9 @@ extension VoIPCenter: PKPushRegistryDelegate {
             }
             self.eventSink?(["event": EventChannel.onDidReceiveIncomingPush.rawValue,
                              "payload": info as Any,
+                             "uuid": info["uuid"] as! String,
+                             "callID": info["callID"] as! String,
+                             "receiverID": info["receiverID"] as! String,
                              "callName": info["callName"] as! String,])
             completion()
         }
@@ -139,7 +142,10 @@ extension VoIPCenter: PKPushRegistryDelegate {
             }
             self.eventSink?(["event": EventChannel.onDidReceiveIncomingPush.rawValue,
                              "payload": info as Any,
-                             "callName": info?["callName"] as! String])
+                             "uuid": info?["uuid"] as! String,
+                             "callID": info?["callID"] as! String,
+                             "receiverID": info?["receiverID"] as! String,
+                             "callName": info?["callName"] as! String,])
         }
     }
 

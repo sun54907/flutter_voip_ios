@@ -9,7 +9,8 @@ import 'notifications_settings.dart';
 
 final MethodChannel _channel = MethodChannel(ChannelType.method.name);
 
-typedef IncomingPush = void Function(Map<String, dynamic> payload);
+typedef IncomingPush = void Function(
+    String uuid, String callerId, String receiverId, String callerName);
 typedef IncomingAction = void Function(
     String uuid, String callerId, String receiverId, String callerName);
 typedef OnUpdatePushToken = void Function(String token);
@@ -226,8 +227,7 @@ class FlutterIOSVoIPKit {
         print('🎈 onDidReceiveIncomingPush($onDidReceiveIncomingPush): $map');
 
         onDidReceiveIncomingPush?.call(
-          Map<String, dynamic>.from(map['payload'] as Map),
-        );
+            map['uuid'], map['callID'], map['receiverID'], map['callName']);
         break;
       case 'onDidAcceptIncomingCall':
         print('🎈 onDidAcceptIncomingCall($onDidAcceptIncomingCall): $map');

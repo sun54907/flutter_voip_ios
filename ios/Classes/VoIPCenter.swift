@@ -177,7 +177,8 @@ extension VoIPCenter: CXProviderDelegate {
         self.eventSink?(["event": EventChannel.onDidAcceptIncomingCall.rawValue,
                          "uuid": self.callKitCenter.uuidString as Any,
                          "callID": self.callKitCenter.incomingCallerId as Any,
-                         "callName": self.callKitCenter.incomingCallerName as Any])
+                         "callName": self.callKitCenter.incomingCallerName as Any,
+                         "receiverID": self.callKitCenter.receiverId as Any])
     }
 
     public func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
@@ -186,7 +187,8 @@ extension VoIPCenter: CXProviderDelegate {
             self.eventSink?(["event": EventChannel.onDidRejectIncomingCall.rawValue,
                              "uuid": self.callKitCenter.uuidString as Any,
                              "callID": self.callKitCenter.incomingCallerId as Any,
-                             "callName": self.callKitCenter.incomingCallerName as Any])
+                             "callName": self.callKitCenter.incomingCallerName as Any,
+                             "receiverID": self.callKitCenter.receiverId as Any])
         }
 
         self.callKitCenter.disconnected(reason: .remoteEnded)

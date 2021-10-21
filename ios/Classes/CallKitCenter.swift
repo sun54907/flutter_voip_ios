@@ -24,6 +24,7 @@ class CallKitCenter: NSObject {
     private(set) var incomingCallerName: String?
     private var isReceivedIncomingCall: Bool = false
     private var isCallConnected: Bool = false
+    private var isSecondCall: Bool = false
     private var maximumCallGroups: Int = 1
     var answerCallAction: CXAnswerCallAction?
 
@@ -73,6 +74,9 @@ class CallKitCenter: NSObject {
     }
 
     func incomingCall(uuidString: String, callerId: String, callerName: String, receiverId: String, completion: @escaping (Error?) -> Void) {
+        if let _ = self.uuidString {
+            isSecondCall = true
+        }
         self.uuidString = uuidString
         self.incomingCallerId = callerId
         self.incomingCallerName = callerName
@@ -138,14 +142,17 @@ class CallKitCenter: NSObject {
     }
 
     func disconnected(reason: CXCallEndedReason) {
-        self.uuidString = nil
-        self.incomingCallerId = nil
-        self.receiverId = nil
-        self.incomingCallerName = nil
-        self.answerCallAction = nil
-        self.isReceivedIncomingCall = false
-        self.isCallConnected = false
-
+        if self.isSecondCall {
+            self.isSecondCall = false
+        } else {
+            self.uuidString = nil
+            self.incomingCallerId = nil
+            self.receiverId = nil
+            self.incomingCallerName = nil
+            self.answerCallAction = nil
+            self.isReceivedIncomingCall = false
+            self.isCallConnected = false
+        }
         self.provider?.reportCall(with: self.uuid, endedAt: nil, reason: reason)
     }
 }

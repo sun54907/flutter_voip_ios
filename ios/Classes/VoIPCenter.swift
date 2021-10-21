@@ -1,158 +1,235 @@
 //
-//  CallKitCenter.swift
+//  VoIPCenter.swift
 //  flutter_ios_voip_kit
 //
 //  Created by 須藤将史 on 2020/07/02.
 //
-
 import Foundation
+import Flutter
+import PushKit
 import CallKit
-import UIKit
+import AVFoundation
 
-class CallKitCenter: NSObject {
+extension String {
+    internal init(deviceToken: Data) {
+        self = deviceToken.map { String(format: "%.2hhx", $0) }.joined()
+    }
+}
+
+class VoIPCenter: NSObject {
+
+    // MARK: - event channel
+    private let eventChannel: FlutterEventChannel
+    private var eventSink: FlutterEventSink?
+
+    private enum EventChannel: String {
+        case onDidReceiveIncomingPush
+        case onDidAcceptIncomingCall
+        case onDidRejectIncomingCall
+        
+        case onDidUpdatePushToken
+        case onDidActivateAudioSession
+        case onDidDeactivateAudioSession
+    }
+
+    // MARK: - PushKit
+    private let didUpdateTokenKey = "Did_Update_VoIP_Device_Token"
+    private let pushRegistry: PKPushRegistry
+
+    var token: String? {
+        if let didUpdateDeviceToken = UserDefaults.standard.data(forKey: didUpdateTokenKey) {
+            let token = String(deviceToken: didUpdateDeviceToken)
+            print("🎈 VoIP didUpdateDeviceToken: \(token)")
+            return token
+        }
+
+        guard let cacheDeviceToken = self.pushRegistry.pushToken(for: .voIP) else {
+            return nil
+        }
+
+        let token = String(deviceToken: cacheDeviceToken)
+        print("🎈 VoIP cacheDeviceToken: \(token)")
+        return token
+    }
+
+    // MARK: - CallKit
+    let callKitCenter: CallKitCenter
     
-    private let controller = CXCallController()
-    private let iconName: String
-    private let localizedName: String
-    private let supportVideo: Bool
-    private let skipRecallScreen: Bool
-    private var provider: CXProvider?
-    private var uuid = UUID()
-    private(set) var uuidString: String?
-    private(set) var incomingCallerId: String?
-    private(set) var receiverId: String?
-    private(set) var incomingCallerName: String?
-    private var isReceivedIncomingCall: Bool = false
-    private var isCallConnected: Bool = false
-    private var isSecondCall: Bool = false
-    private var maximumCallGroups: Int = 1
-    var answerCallAction: CXAnswerCallAction?
+    fileprivate var audioSessionMode: AVAudioSession.Mode
+    fileprivate let ioBufferDuration: TimeInterval
+    fileprivate let audioSampleRate: Double
 
-    var isCalleeBeforeAcceptIncomingCall: Bool {
-        return self.isReceivedIncomingCall && !self.isCallConnected
-    }
-
-    override init() {
-        if let path = Bundle.main.path(forResource: "Info", ofType: "plist") {
-            let plist = NSDictionary(contentsOfFile: path)
-            self.iconName = plist?["FIVKIconName"] as? String ?? "AppIcon-VoIPKit"
-            self.localizedName = plist?["FIVKLocalizedName"] as? String ?? "App Name"
-            self.supportVideo = plist?["FIVKSupportVideo"] as? Bool ?? false
-            self.skipRecallScreen = plist?["FIVKSkipRecallScreen"] as? Bool ?? false
-            self.maximumCallGroups = plist?["FIVKMaximumCallGroups"] as? Int ?? 1
+    init(eventChannel: FlutterEventChannel) {
+        self.eventChannel = eventChannel
+        self.pushRegistry = PKPushRegistry(queue: .main)
+        self.pushRegistry.desiredPushTypes = [.voIP]
+        self.callKitCenter = CallKitCenter()
+        
+        if let path = Bundle.main.path(forResource: "Info", ofType: "plist"), let plist = NSDictionary(contentsOfFile: path) {
+            self.audioSessionMode = ((plist["FIVKAudioSessionMode"] as? String) ?? "audio") == "video" ? .videoChat : .voiceChat
+            self.ioBufferDuration = plist["FIVKIOBufferDuration"] as? TimeInterval ?? 0.005
+            self.audioSampleRate = plist["FIVKAudioSampleRate"] as? Double ?? 44100.0
         } else {
-            self.iconName = "AppIcon-VoIPKit"
-            self.localizedName = "App Name"
-            self.supportVideo = false
-            self.skipRecallScreen = false
+            self.audioSessionMode = .voiceChat
+            self.ioBufferDuration = TimeInterval(0.005)
+            self.audioSampleRate = 44100.0
         }
+        
         super.init()
+        self.eventChannel.setStreamHandler(self)
+        self.pushRegistry.delegate = self
+        self.callKitCenter.setup(delegate: self)
+    }
+}
+
+extension VoIPCenter: PKPushRegistryDelegate {
+
+    // MARK: - PKPushRegistryDelegate
+    public func pushRegistry(_ registry: PKPushRegistry, didUpdate pushCredentials: PKPushCredentials, for type: PKPushType) {
+        print("🎈 VoIP didUpdate pushCredentials")
+        UserDefaults.standard.set(pushCredentials.token, forKey: didUpdateTokenKey)
+        
+        self.eventSink?(["event": EventChannel.onDidUpdatePushToken.rawValue,
+                         "token": pushCredentials.token.hexString])
     }
 
-    func setup(delegate: CXProviderDelegate) {
-        let providerConfiguration = CXProviderConfiguration(localizedName: self.localizedName)
-        providerConfiguration.supportsVideo = self.supportVideo
-        providerConfiguration.maximumCallsPerCallGroup = 1
-        providerConfiguration.maximumCallGroups = maximumCallGroups
-        providerConfiguration.supportedHandleTypes = [.generic]
-        providerConfiguration.iconTemplateImageData = UIImage(named: self.iconName)?.pngData()
-        self.provider = CXProvider(configuration: providerConfiguration)
-        self.provider?.setDelegate(delegate, queue: nil)
-    }
+    // NOTE: iOS11 or more support
+    public func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
+        print("🎈 VoIP didReceiveIncomingPushWith completion: \(payload.dictionaryPayload)")
 
-    func startCall(uuidString: String, targetName: String) {
-        self.uuid = UUID(uuidString: uuidString)!
-        let handle = CXHandle(type: .generic, value: targetName)
-        let startCallAction = CXStartCallAction(call: self.uuid, handle: handle)
-        startCallAction.isVideo = self.supportVideo
-        let transaction = CXTransaction(action: startCallAction)
-        self.controller.request(transaction) { error in
-            if let error = error {
-                print("❌ CXStartCallAction error: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    func incomingCall(uuidString: String, callerId: String, callerName: String, receiverId: String, completion: @escaping (Error?) -> Void) {
-        if let _ = self.uuidString {
-            isSecondCall = true
-        }
-        self.uuidString = uuidString
-        self.incomingCallerId = callerId
-        self.incomingCallerName = callerName
-        self.isReceivedIncomingCall = true
-        self.receiverId = receiverId
-        self.uuid = UUID(uuidString: uuidString)!
-        let update = CXCallUpdate()
-        update.remoteHandle = CXHandle(type: .generic, value: callerName)
-        update.hasVideo = self.supportVideo
-        update.supportsHolding = false
-        update.supportsGrouping = false
-        update.supportsUngrouping = true
-        self.provider?.reportNewIncomingCall(with: self.uuid, update: update, completion: { error in
-            if (error == nil) {
-                self.connectedOutgoingCall()
-            }
-
-            completion(error)
-        })
-    }
-
-    func acceptIncomingCall(alreadyEndCallerReason: CXCallEndedReason?) {
-        guard alreadyEndCallerReason == nil else {
-            self.skipRecallScreen ? self.answerCallAction?.fulfill() : self.answerCallAction?.fail()
-            self.answerCallAction = nil
+        guard let info = self.parse(payload: payload) else {
+            self.callKitCenter.disconnected(reason: .remoteEnded)
             return
         }
-
-        self.answerCallAction?.fulfill()
-        self.answerCallAction = nil
-    }
-
-    func unansweredIncomingCall() {
-        self.disconnected(reason: .unanswered)
-    }
-    
-    
-    func endCall(_ uuidString: String, callerId: String, callerName: String, receiverId: String) {
-        self.uuidString = uuidString
-        self.incomingCallerId = callerId
-        self.incomingCallerName = callerName
-        self.receiverId = receiverId
-        self.isReceivedIncomingCall = true
-        let endCallAction = CXEndCallAction(call: self.uuid)
-        let transaction = CXTransaction(action: endCallAction)
-        self.controller.request(transaction) { error in
+        
+        self.callKitCenter.incomingCall(uuidString: info["uuid"] as! String,
+                                        callerId: info["callID"] as! String,
+                                        callerName: info["callName"] as! String,
+                                        receiverId: info["receiverID"] as! String) { error in
             if let error = error {
-                print("❌ CXEndCallAction error: \(error.localizedDescription)")
+                print("❌ reportNewIncomingCall error: \(error.localizedDescription)")
+                return
             }
+            self.eventSink?(["event": EventChannel.onDidReceiveIncomingPush.rawValue,
+                             "payload": info as Any,
+                             "uuid": info["uuid"] as! String,
+                             "callID": info["callID"] as! String,
+                             "receiverID": info["receiverID"] as! String,
+                             "callName": info["callName"] as! String,])
+            completion()
         }
     }
 
-    func callConnected() {
-        self.isCallConnected = true
-    }
+    // NOTE: iOS10 support
+    public func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType) {
+        print("🎈 VoIP didReceiveIncomingPushWith: \(payload.dictionaryPayload)")
 
-    func connectingOutgoingCall() {
-        self.provider?.reportOutgoingCall(with: self.uuid, startedConnectingAt: nil)
-    }
-
-    private func connectedOutgoingCall() {
-        self.provider?.reportOutgoingCall(with: self.uuid, connectedAt: nil)
-    }
-
-    func disconnected(reason: CXCallEndedReason) {
-        if self.isSecondCall {
-            self.isSecondCall = false
-        } else {
-            self.uuidString = nil
-            self.incomingCallerId = nil
-            self.receiverId = nil
-            self.incomingCallerName = nil
-            self.answerCallAction = nil
-            self.isReceivedIncomingCall = false
-            self.isCallConnected = false
+        let info = self.parse(payload: payload)
+        self.callKitCenter.incomingCall(uuidString: info?["uuid"] as! String,
+                                        callerId: info?["callID"] as! String,
+                                        callerName: info?["callName"] as! String,
+                                        receiverId: info?["receiverID"] as! String) { error in
+            if let error = error {
+                print("❌ reportNewIncomingCall error: \(error.localizedDescription)")
+                return
+            }
+            self.eventSink?(["event": EventChannel.onDidReceiveIncomingPush.rawValue,
+                             "payload": info as Any,
+                             "uuid": info?["uuid"] as! String,
+                             "callID": info?["callID"] as! String,
+                             "receiverID": info?["receiverID"] as! String,
+                             "callName": info?["callName"] as! String,])
         }
-        self.provider?.reportCall(with: self.uuid, endedAt: nil, reason: reason)
+    }
+
+    private func parse(payload: PKPushPayload) -> [String: Any]? {
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload.dictionaryPayload, options: .prettyPrinted)
+            let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
+            let aps = json?["aps"] as? [String: Any]
+            return aps?["alert"] as? [String: Any]
+        } catch let error as NSError {
+            print("❌ VoIP parsePayload: \(error.localizedDescription)")
+            return nil
+        }
+    }
+}
+
+extension VoIPCenter: CXProviderDelegate {
+
+    // MARK:  - CXProviderDelegate
+    public func providerDidReset(_ provider: CXProvider) {
+        print("🚫 VoIP providerDidReset")
+    }
+
+    public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
+        print("🤙 VoIP CXStartCallAction")
+        self.callKitCenter.connectingOutgoingCall()
+        action.fulfill()
+    }
+
+    public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
+        print("✅ VoIP CXAnswerCallAction")
+        self.callKitCenter.answerCallAction = action
+        self.configureAudioSession()
+        self.eventSink?(["event": EventChannel.onDidAcceptIncomingCall.rawValue,
+                         "uuid": self.callKitCenter.uuidString as Any,
+                         "callID": self.callKitCenter.incomingCallerId as Any,
+                         "callName": self.callKitCenter.incomingCallerName as Any,
+                         "receiverID": self.callKitCenter.receiverId as Any])
+    }
+
+    public func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
+        print("❎ VoIP CXEndCallAction")
+        if (self.callKitCenter.isCalleeBeforeAcceptIncomingCall) {
+            self.eventSink?(["event": EventChannel.onDidRejectIncomingCall.rawValue,
+                             "uuid": self.callKitCenter.uuidString as Any,
+                             "callID": self.callKitCenter.incomingCallerId as Any,
+                             "callName": self.callKitCenter.incomingCallerName as Any,
+                             "receiverID": self.callKitCenter.receiverId as Any])
+        }
+
+        self.callKitCenter.disconnected(reason: .remoteEnded)
+        action.fulfill()
+    }
+    
+    public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+        print("🔈 VoIP didActivate audioSession")
+        self.eventSink?(["event": EventChannel.onDidActivateAudioSession.rawValue])
+    }
+
+    public func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+        print("🔇 VoIP didDeactivate audioSession")
+        self.eventSink?(["event": EventChannel.onDidDeactivateAudioSession.rawValue])
+    }
+    
+    // This is a workaround for known issue, when audio doesn't start from lockscreen call
+    // https://stackoverflow.com/questions/55391026/no-sound-after-connecting-to-webrtc-when-app-is-launched-in-background-using-pus
+    private func configureAudioSession() {
+        let sharedSession = AVAudioSession.sharedInstance()
+        do {
+            try sharedSession.setCategory(.playAndRecord,
+                                          options: [AVAudioSession.CategoryOptions.allowBluetooth,
+                                                    AVAudioSession.CategoryOptions.defaultToSpeaker])
+            try sharedSession.setMode(audioSessionMode)
+            try sharedSession.setPreferredIOBufferDuration(ioBufferDuration)
+            try sharedSession.setPreferredSampleRate(audioSampleRate)
+        } catch {
+            print("❌ VoIP Failed to configure `AVAudioSession`")
+        }
+    }
+}
+
+extension VoIPCenter: FlutterStreamHandler {
+
+    // MARK: - FlutterStreamHandler（event channel）
+    public func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        self.eventSink = events
+        return nil
+    }
+
+    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        self.eventSink = nil
+        return nil
     }
 }

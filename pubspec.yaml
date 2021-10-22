@@ -1,6 +1,9 @@
 name: flutter_ios_voip_kit
+
 description: One-to-one video call using CallKit and PushKit with flutter ios app.
-version: 0.0.6
+
+version: 0.0.7
+
 homepage: https://github.com/masashi-sutou/flutter_ios_voip_kit
 
 environment:

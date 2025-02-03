@@ -19,8 +19,6 @@ extension on AuthorizationStatus {
         return '.provisional';
       case AuthorizationStatus.ephemeral:
         return '.ephemeral';
-      default:
-        return '.ephemeral';
     }
   }
 }
@@ -39,8 +37,6 @@ extension on ShowPreviewsSetting {
       case ShowPreviewsSetting.whenAuthenticated:
         return '.whenAuthenticated';
       case ShowPreviewsSetting.never:
-        return '.never';
-      default:
         return '.never';
     }
   }
@@ -61,8 +57,6 @@ extension on NotificationSetting {
         return '.disabled';
       case NotificationSetting.enabled:
         return '.enabled';
-      default:
-        return '.alert';
     }
   }
 }
@@ -77,8 +71,6 @@ extension on AlertStyle {
       case AlertStyle.banner:
         return '.banner';
       case AlertStyle.alert:
-        return '.alert';
-      default:
         return '.alert';
     }
   }

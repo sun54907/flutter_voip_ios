@@ -56,7 +56,12 @@ class _OutgoingCallPageState extends State<OutgoingCallPage> {
         backgroundColor: isOutgoing ? Colors.red : Colors.blue,
         onPressed: () async {
           (isOutgoing)
-              ? await voIPKit.endCall()
+              ? await voIPKit.endCall(
+                uuid: Uuid().v4(),
+                callerId: 'dummy_caller_id',
+                receiverId: 'dummy_receiver_id',
+                callerName: 'Dummy Tester',
+              )
               : await voIPKit.startCall(
                   uuid: Uuid().v4(),
                   targetName: 'Dummy Tester',

@@ -26,14 +26,14 @@ apply plugin: 'kotlin-android'
 
 android {
     namespace = "netkeepingblog.flutter_ios_voip_kit"
-    compileSdk = 35
+    compileSdk = 34
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17
+        jvmTarget = JavaVersion.VERSION_11
     }
     sourceSets {
         main.java.srcDirs += "src/main/kotlin"

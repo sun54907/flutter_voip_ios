@@ -15,8 +15,7 @@ extension on ExampleAction {
         return 'Authorize Notifications';
       case ExampleAction.GetSettings:
         return 'Check Settings';
-      default:
-        return 'Unknown';
+      
     }
   }
 }
@@ -61,15 +60,13 @@ class _SelectCallRollState extends State<SelectCallRoll> {
                 title: Text('Settings'),
                 content: Text('$settings'),
                 actions: [
-                  FlatButton(
+                  TextButton(
                     onPressed: () => Navigator.of(ctx).pop(),
                     child: Text('Ok'),
                   )
                 ],
               );
             });
-        break;
-      default:
         break;
     }
   }
@@ -122,7 +119,7 @@ class _SelectCallRollState extends State<SelectCallRoll> {
   }
 
   Widget _button({
-    @required bool isCaller,
+    required bool isCaller,
   }) {
     return SizedBox(
       width: 140,

@@ -17,33 +17,45 @@ class _IncomingCallPageState extends State<IncomingCallPage> {
   final voIPKit = FlutterIOSVoIPKit.instance;
   var dummyCallId = '123456';
   var dummyCallerName = 'Dummy Tester';
-  Timer timeOutTimer;
+  var dummyReceiverId = '654321';
+  Timer? timeOutTimer;
   bool isTalking = false;
+  String? uuid;
+  String? callerId;
+  String? receiverId;
+  String? callerName;
 
   @override
   void initState() {
     super.initState();
 
     voIPKit.onDidReceiveIncomingPush = (
-      Map<String, dynamic> payload,
+       String uuid, String callerId, String receiverId, String callerName,
     ) async {
       /// Notifies device of VoIP notifications(PushKit) with curl or your server(See README.md).
       /// [onDidReceiveIncomingPush] is not called when the app is not running, because app is not yet running when didReceiveIncomingPushWith is called.
-      print('🎈 example: onDidReceiveIncomingPush $payload');
+      print('🎈 example: onDidReceiveIncomingPush uuid: $uuid, callerId: $callerId, receiverId: $receiverId, callerName: $callerName');
       _timeOut();
+      this.uuid = uuid;
+      this.callerId = callerId;
+      this.receiverId = receiverId;
+      this.callerName = callerName;
     };
 
     voIPKit.onDidRejectIncomingCall = (
-      String uuid,
-      String callerId,
+      String uuid, String callerId, String receiverId, String callerName
     ) {
       if (isTalking) {
         return;
       }
 
-      print('🎈 example: onDidRejectIncomingCall $uuid, $callerId');
-      voIPKit.endCall();
+      print('🎈 example: onDidRejectIncomingCall uuid: $uuid, callerId: $callerId, receiverId: $receiverId, callerName: $callerName');
+      voIPKit.endCall(uuid: uuid, callerId: callerId, receiverId: receiverId, callerName: callerName);
       timeOutTimer?.cancel();
+      this.uuid = null;
+      this.callerId = null;
+      this.receiverId = null;
+      this.callerName = null;
 
       setState(() {
         isTalking = false;
@@ -51,17 +63,20 @@ class _IncomingCallPageState extends State<IncomingCallPage> {
     };
 
     voIPKit.onDidAcceptIncomingCall = (
-      String uuid,
-      String callerId,
+      String uuid, String callerId, String receiverId, String callerName
     ) {
       if (isTalking) {
         return;
       }
 
-      print('🎈 example: onDidAcceptIncomingCall $uuid, $callerId');
+      print('🎈 example: onDidAcceptIncomingCall uuid: $uuid, callerId: $callerId, receiverId: $receiverId, callerName: $callerName');
       voIPKit.acceptIncomingCall(callerState: CallStateType.calling);
       voIPKit.callConnected();
       timeOutTimer?.cancel();
+      this.uuid = uuid;
+      this.callerId = callerId;
+      this.receiverId = receiverId;
+      this.callerName = callerName;
 
       setState(() {
         isTalking = true;
@@ -100,7 +115,7 @@ class _IncomingCallPageState extends State<IncomingCallPage> {
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: <Widget>[
-                      FutureBuilder<String>(
+                      FutureBuilder<String?>(
                         future: voIPKit.getVoIPToken(),
                         builder: (context, snapshot) {
                           return GestureDetector(
@@ -109,9 +124,9 @@ class _IncomingCallPageState extends State<IncomingCallPage> {
                                 return;
                               }
 
-                              final data = ClipboardData(text: snapshot.data);
+                              final data = ClipboardData(text: snapshot.data ?? '');
                               await Clipboard.setData(data);
-                              Scaffold.of(context).showSnackBar(
+                              ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
                                     '✅ Copy to VoIP device Token for APNs',
@@ -157,7 +172,19 @@ class _IncomingCallPageState extends State<IncomingCallPage> {
               ),
               backgroundColor: Colors.red,
               onPressed: () async {
-                await voIPKit.endCall();
+                final uuid = this.uuid;
+                final callerId = this.callerId;
+                final receiverId = this.receiverId;
+                final callerName = this.callerName;
+                if (uuid == null || callerId == null || receiverId == null || callerName == null) {
+                  return;
+                }
+                await voIPKit.endCall(
+                  uuid: uuid,
+                  callerId: callerId,
+                  receiverId: receiverId,
+                  callerName: callerName,
+                );
                 setState(() {
                   isTalking = false;
                 });
@@ -178,6 +205,7 @@ class _IncomingCallPageState extends State<IncomingCallPage> {
                   uuid: Uuid().v4(),
                   callerId: dummyCallId,
                   callerName: dummyCallerName,
+                  receiverId: dummyReceiverId,
                 );
                 _timeOut();
               },

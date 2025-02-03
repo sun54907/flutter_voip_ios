@@ -21,8 +21,6 @@ extension CallStateTypeEx on CallStateType {
         return 'idle';
       case CallStateType.calling:
         return 'calling';
-      default:
-        return 'calling';
     }
   }
 }

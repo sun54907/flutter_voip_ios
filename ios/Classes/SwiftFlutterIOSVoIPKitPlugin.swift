@@ -12,7 +12,7 @@ public class SwiftFlutterIOSVoIPKitPlugin: NSObject {
     init(messenger: FlutterBinaryMessenger) {
         self.voIPCenter = VoIPCenter(eventChannel: FlutterEventChannel(name: FlutterPluginChannelType.event.name, binaryMessenger: messenger))
         super.init()
-        self.notificationCenter.delegate = self
+        // self.notificationCenter.delegate = self
     }
 
     // MARK: - VoIPCenter
